@@ -54,4 +54,15 @@ while($true)
         [System.Windows.Forms.MessageBox]::Show("yourProgram,`nwas closed", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         exit
     }
+
+    # Check if the computer is locked
+    $isLocked = [System.Windows.Forms.SystemInformation]::SessionHasLocked
+    write-host  $isLocked
+    if ($isLocked) {
+        # Computer is locked, close the program
+        taskkill /IM Postman.exe /F
+        [System.Windows.Forms.MessageBox]::Show("Computer is locked. yourProgram was closed.", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        exit
+    }
+
 }
