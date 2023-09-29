@@ -49,7 +49,8 @@ while($true)
     $inactivityTolerance = 10
 
     if ($counter -ge $inactivityTolerance) {
-        taskkill /IM Sbadmrdo.exe /F
+        # your program name
+        taskkill /IM yourProgram.exe /F
         [System.Windows.Forms.MessageBox]::Show("yourProgram,`nwas closed", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         exit
     }
