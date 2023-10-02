@@ -34,35 +34,48 @@ function Get-ActiveWindowPath {
 
 while($true)
 {
-    $activeprogram = Get-ActiveWindowPath
-    $exeName = Split-Path $activeprogram -Leaf
-    # your program name
-    $programName = "yourProgram.exe" 
-    if ($exeName -ne $programName) {
-        $counter++
-    } else {
-        $counter = 0
-    }
-    Start-Sleep -Seconds 1
-
     # inactivity tolerance in seconds
     $inactivityTolerance = 10
+    # your program name
+    $programName = "YourProgram" 
+    $programExecutable =  $programName + ".exe"
 
+    
+    $process = @(Get-WmiObject -Class Win32_Process -Filter "Name = 'LogonUI.exe'" -ErrorAction SilentlyContinue | Where-Object {$_.SessionID -eq $([System.Diagnostics.Process]::GetCurrentProcess().SessionId)})
+    # Check if the computer is locked
+    if ($process.Count -eq 0) {
+
+        # Check if $programName is running
+        $isProgramRunning = Get-Process -Name  $programName -ErrorAction SilentlyContinue
+
+        if (-not $isProgramRunning) {
+            # Kill script
+            exit
+        }
+
+        #Get active window
+        $activeprogram = Get-ActiveWindowPath
+        $exeName = Split-Path $activeprogram -Leaf
+       
+        if ($exeName -ne $programExecutable) {
+            $counter++
+        } else {
+            $counter = 0
+        }
+
+    } else { # Kill program after locked
+        taskkill /IM $programExecutable /F
+        [System.Windows.Forms.MessageBox]::Show("yourProgram,`nwas closed because locked", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        exit
+    }
+
+    # Kill program after inactivity
     if ($counter -ge $inactivityTolerance) {
-        # your program name
-        taskkill /IM yourProgram.exe /F
+        taskkill /IM $programExecutable /F
         [System.Windows.Forms.MessageBox]::Show("yourProgram,`nwas closed", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         exit
     }
 
-    # Check if the computer is locked
-    $isLocked = [System.Windows.Forms.SystemInformation]::SessionHasLocked
-    write-host  $isLocked
-    if ($isLocked) {
-        # Computer is locked, close the program
-        taskkill /IM Postman.exe /F
-        [System.Windows.Forms.MessageBox]::Show("Computer is locked. yourProgram was closed.", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-        exit
-    }
+    Start-Sleep -Seconds 1
 
 }
