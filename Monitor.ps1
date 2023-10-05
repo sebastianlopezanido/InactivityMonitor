@@ -1,5 +1,6 @@
 Add-Type @"
     using System;
+    using System.Diagnostics;
     using System.Runtime.InteropServices;
     public class User32 {
         [DllImport("user32.dll", SetLastError = true)]
@@ -10,6 +11,43 @@ Add-Type @"
 
          [DllImport("user32.dll", SetLastError = true)]
         public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+    }
+    namespace PInvoke.Win32 {
+
+    public static class UserInput {
+
+        [DllImport("user32.dll", SetLastError=false)]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO {
+            public uint cbSize;
+            public int dwTime;
+        }
+
+        public static DateTime LastInput {
+            get {
+                DateTime bootTime = DateTime.UtcNow.AddMilliseconds(-Environment.TickCount);
+                DateTime lastInput = bootTime.AddMilliseconds(LastInputTicks);
+                return lastInput;
+            }
+        }
+
+        public static TimeSpan IdleTime {
+            get {
+                return DateTime.UtcNow.Subtract(LastInput);
+            }
+        }
+
+        public static int LastInputTicks {
+            get {
+                LASTINPUTINFO lii = new LASTINPUTINFO();
+                lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+                GetLastInputInfo(ref lii);
+                return lii.dwTime;
+            }
+        }
+    }
     }
 "@
 
@@ -32,10 +70,25 @@ function Get-ActiveWindowPath {
     return $process.MainModule.FileName
 }
 
+function Get-LastActivity {
+    return [PInvoke.Win32.UserInput]::IdleTime
+}
+
+function Get-LastInput {
+    $currentTime = Get-Date
+    $lastInputUtc = [PInvoke.Win32.UserInput]::LastInput
+    $localTimeZone = [System.TimeZoneInfo]::Local
+    $lastInputLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc($lastInputUtc, $localTimeZone)
+    $timeDifference = [math]::abs(($currentTime - $lastInputLocal).TotalMilliseconds)
+    return [TimeSpan]::FromMilliseconds($timeDifference)
+}
+
 while($true)
 {
-    # inactivity tolerance in seconds
-    $inactivityTolerance = 10
+    # unfocus tolerance in seconds 
+    $unfocusTolerance = 10
+    # inactivity tolerance in time for inactivity
+    $inactivityTolerance = '00:01:00'
     # your program name
     $programName = "YourProgram" 
     $programExecutable =  $programName + ".exe"
@@ -63,16 +116,21 @@ while($true)
             $counter = 0
         }
 
+        #Get last activity
+        $lastActivity = Get-LastActivity
+        #Get last input
+        $lastInput = Get-LastInput 
+
+        # Kill program after inactivity
+        if ($counter -ge $unfocusTolerance -or  $lastActivity -ge $inactivityTolerance -or  $lastInput -ge $inactivityTolerance) {
+            taskkill /IM $programExecutable /F
+            [System.Windows.Forms.MessageBox]::Show("yourProgram,`nwas closed", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+            exit
+        }
+
     } else { # Kill program after locked
         taskkill /IM $programExecutable /F
         [System.Windows.Forms.MessageBox]::Show("yourProgram,`nwas closed because locked", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-        exit
-    }
-
-    # Kill program after inactivity
-    if ($counter -ge $inactivityTolerance) {
-        taskkill /IM $programExecutable /F
-        [System.Windows.Forms.MessageBox]::Show("yourProgram,`nwas closed", "Script done by Tuki", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         exit
     }
 
